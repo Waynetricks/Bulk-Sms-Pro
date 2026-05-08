@@ -1,0 +1,4 @@
+node
+18
+
+# This ensures both frontend and backend use Node 18

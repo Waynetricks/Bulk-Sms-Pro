@@ -1,0 +1,13 @@
+/* 
+  Bulk SMS Web Application - TypeScript Configuration
+  Monorepo supporting React frontend and Express backend
+*/
+
+// Backend configuration is in server/tsconfig.json
+// Frontend configuration is in client/tsconfig.json
+
+// Shared development patterns:
+// - Use strict mode for type safety
+// - Enable strict null checks
+// - Use consistent module resolution
+// - Support JSX for React components
