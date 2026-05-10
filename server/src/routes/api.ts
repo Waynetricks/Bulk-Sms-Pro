@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { CampaignService, ContactService, GroupService } from '../services';
 import { sendLimiter } from '../middleware/error';
+import crypto from 'crypto';
 
 const router = Router();
 const campaignService = new CampaignService();
@@ -147,7 +148,44 @@ router.delete('/groups/:id', async (req: Request, res: Response) => {
 // Webhook Routes
 router.post('/webhooks/delivery-report', async (req: Request, res: Response) => {
   try {
-    const { externalId, status } = req.body;
+    // Standard format (Twilio, Vonage, etc)
+    let externalId = req.body.externalId;
+    let status = req.body.status;
+
+    // Briq Webhook Format
+    if (req.body.event && req.body.data && req.body.data.job_id) {
+      
+      // Verify signature
+      const secret = process.env.WEBHOOK_SECRET;
+      if (secret) {
+        const signatureHeader = req.headers['x-briq-signature'] as string;
+        if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
+          return res.status(401).json({ error: 'Missing or invalid Briq signature' });
+        }
+        
+        const expectedHex = signatureHeader.slice('sha256='.length);
+        const rawBody = (req as any).rawBody;
+        if (!rawBody) {
+          return res.status(500).json({ error: 'Raw body missing for signature verification' });
+        }
+
+        const digest = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+        try {
+          if (!crypto.timingSafeEqual(Buffer.from(digest, 'utf8'), Buffer.from(expectedHex, 'utf8'))) {
+            return res.status(401).json({ error: 'Signature mismatch' });
+          }
+        } catch {
+          return res.status(401).json({ error: 'Signature mismatch' });
+        }
+      }
+
+      externalId = req.body.data.job_id;
+      // Map Briq events to internal statuses
+      if (req.body.event === 'sms.delivered') status = 'delivered';
+      else if (req.body.event === 'sms.failed' || req.body.event === 'sms.expired') status = 'failed';
+      else if (req.body.event === 'sms.sent') status = 'sent';
+      else status = req.body.data.status?.toLowerCase() || 'delivered';
+    }
 
     if (!externalId || !status) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -156,7 +194,7 @@ router.post('/webhooks/delivery-report', async (req: Request, res: Response) => 
     // Find and update message
     const message = await Message.findOne({ where: { externalId } });
     if (message) {
-      await message.update({ status: status || 'delivered' });
+      await message.update({ status: status.toLowerCase() });
 
       // Update campaign stats
       if (status === 'delivered') {

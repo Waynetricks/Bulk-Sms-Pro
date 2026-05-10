@@ -1,22 +1,32 @@
 import { Contact, Campaign, Message, Group } from '../models';
 import smsQueue from '../queue/smsQueue';
+import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 
 export class CampaignService {
   async createCampaign(name: string, message: string, recipients: string[]) {
+    // Validate phone numbers
+    const validRecipients = recipients.filter(phone => isValidPhoneNumber(phone));
+    if (validRecipients.length === 0) {
+      throw new Error('No valid phone numbers provided');
+    }
+
     const campaign = await Campaign.create({
       name,
       message,
-      totalRecipients: recipients.length,
+      totalRecipients: validRecipients.length,
       status: 'draft',
     });
 
-    // Create message records
-    const messages = recipients.map((phone) => ({
-      campaignId: campaign.id,
-      phone,
-      message,
-      status: 'queued' as const,
-    }));
+    // Create message records with E.164 formatting
+    const messages = validRecipients.map((phone) => {
+      const parsed = parsePhoneNumber(phone);
+      return {
+        campaignId: campaign.id,
+        phone: parsed.number, // E.164 format
+        message,
+        status: 'queued' as const,
+      };
+    });
 
     await Message.bulkCreate(messages, { batchSize: 100 });
 

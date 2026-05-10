@@ -1,5 +1,4 @@
 @echo off
-cd /d "c:\Users\Michael Marwa\Desktop\Bulk sms\client"
-set PATH=%PATH%;C:\Program Files\nodejs
+cd /d "%~dp0client"
 npm run dev
 pause
