@@ -1,4 +1,4 @@
 @echo off
-cd /d "c:\Users\Michael Marwa\Desktop\Bulk sms"
-"C:\Program Files\nodejs\node.exe" server-simple.js
+cd /d "%~dp0server"
+npm run dev
 pause
